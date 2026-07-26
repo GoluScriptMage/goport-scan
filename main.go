@@ -8,9 +8,10 @@ import (
 )
 
 type ScanResult struct {
-	PORT   int
-	IsOpen bool
-	Err    error
+	PORT    int
+	IsOpen  bool
+	Err     error
+	Service string
 }
 
 func main() {
@@ -23,7 +24,7 @@ func main() {
 	// Step 2. Spawn goroutines to handle results
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
-		go worker(ports, results, &wg) 
+		go worker(ports, results, &wg)
 	}
 
 	// Step 3. Send ports to port channel in a separate goroutine
@@ -44,6 +45,7 @@ func main() {
 	for res := range results {
 		if res.IsOpen {
 			fmt.Printf("Port %d is open\n", res.PORT)
+			fmt.Printf("Service %s%d is open\n", res.Service, res.PORT)
 		}
 	}
 }
@@ -52,14 +54,26 @@ func main() {
 func scanPort(port int) ScanResult {
 
 	address := fmt.Sprintf("scanme.nmap.org:%d", port)
+	// address := fmt.Sprintf("127.0.0.1:%d", port)
 
 	conn, err := net.DialTimeout("tcp", address, 1*time.Second)
 	if err != nil {
-		return ScanResult{PORT: port, IsOpen: false, Err: err}
+		return ScanResult{PORT: port, IsOpen: false, Err: err, Service: ""}
 	}
 	defer conn.Close()
 
-	return ScanResult{PORT: port, IsOpen: true, Err: nil}
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second)) // Set deadline of after 2 sec
+	buffer := make([]byte, 256)
+	n, readErr := conn.Read(buffer)
+	var banner string
+
+	if readErr != nil {
+		banner = "Unknown/Silent"
+	} else {
+		banner = string(buffer[:n])// n means from 0:7 index numbers from 256 slots arr
+	}
+
+	return ScanResult{PORT: port, IsOpen: true, Err: nil, Service: banner}
 }
 
 // Woker function that scans ports received from the ports channel and sends results to the results channel
