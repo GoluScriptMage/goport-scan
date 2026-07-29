@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 )
@@ -53,8 +54,8 @@ func main() {
 	// Step 5. Collect results from the results channel
 	for res := range results {
 		if res.IsOpen {
-			fmt.Printf("Port %d is open\n", res.PORT)
-			fmt.Printf("Service %s%d is open\n", res.Service, res.PORT)
+			fmt.Printf("\nPort %d is open\n", res.PORT)
+			fmt.Printf("Service %s is open\n", res.Service)
 		}
 	}
 	fmt.Printf("Scan completed in %v\n", time.Since(startTime))
@@ -83,6 +84,11 @@ func scanPort(port int, host string) ScanResult {
 		banner = string(buffer[:n]) // n means from 0:7 index numbers from 256 slots arr
 	}
 
+	identifiedService := identifyService(port, banner)
+	if identifiedService != "Unknown" {
+		banner = identifiedService
+	}
+
 	return ScanResult{PORT: port, IsOpen: true, Err: nil, Service: banner}
 }
 
@@ -96,4 +102,33 @@ func worker(ports chan int, results chan ScanResult, wg *sync.WaitGroup, host st
 		results <- scanResult
 	}
 	wg.Done() // Mark the worker as done when all ports are scanned
+}
+
+// TO identify the service runnning on the port
+func identifyService(port int, banner string) string {
+	if strings.Contains(banner, "HTTP") {
+		return "HTTP"
+	} else if strings.Contains(banner, "SSH") {
+		return "SSH"
+	} else if strings.Contains(banner, "AMQP") {
+		return "AMQP"
+	} else if strings.Contains(banner, "POP3") {
+		return "POP3"
+	} else if strings.Contains(banner, "Redis") {
+		return "Redis"
+	}
+
+	if port == 22 {
+		return "SSH"
+	} else if port == 80 {
+		return "HTTP"
+	} else if port == 443 {
+		return "HTTPS"
+	} else if port == 6379 {
+		return "Redis"
+	} else if port == 5432 {
+		return "PostgreSQL"
+	}
+
+	return "Unknown"
 }
